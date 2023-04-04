@@ -10,8 +10,8 @@ program
 	.name('slice-gexf')
 	.description('Slice a GEXF over time')
   .requiredOption('-i, --input <file>', 'GEXF file input (required)')
-  .option('-w, --window <seconds>', 'Window range for each slice. In seconds or unitless depending on the time format of the GEXF. Defaults to 1 week (7*24*60*60 seconds) or 1.')
-  .option('-s, --step <seconds>', 'How much time passes from one slice to the next. In seconds or unitless depending on the time format of the GEXF. Defaults to 1 day (24*60*60 seconds) or 0.1.')
+  .option('-r, --range <number>', 'Temporal range (window) for each slice. In seconds or unitless depending on the time format of the GEXF. Defaults to 1 week (7*24*60*60 seconds) or 1.')
+  .option('-s, --step <number>', 'How much time passes from one slice to the next. In seconds or unitless depending on the time format of the GEXF. Defaults to 1 day (24*60*60 seconds) or 0.1.')
   .showHelpAfterError()
   .parse(process.argv);
 
@@ -27,7 +27,7 @@ const parser = new DOMParser();
 const doc = parser.parseFromString(xmlFile);
 const gexfDomnode = doc.getElementsByTagName("gexf").item(0)
 const gexfVersion = gexfDomnode.getAttribute("version")
-const graphNode = gexfDomnode.getElementsByTagName("graph").item(0)
+const graphDomnode = gexfDomnode.getElementsByTagName("graph").item(0)
 
 /// CHECKS
 // Check GEXF version
@@ -36,13 +36,13 @@ if (gexfVersion !== "1.3") {
 }
 
 // Check if dynamic
-if (graphNode.getAttribute("mode") !== "dynamic") {
-  logger.error(`The GEXF is not dynamic, which is currently not supported. GEXF mode: ${graphNode.getAttribute("mode") || "static"}.`)
+if (graphDomnode.getAttribute("mode") !== "dynamic") {
+  logger.error(`The GEXF is not dynamic, which is currently not supported. GEXF mode: ${graphDomnode.getAttribute("mode") || "static"}.`)
   process.exit()
 }
 
 // Check which time format to use
-const timeformat = graphNode.getAttribute("timeformat")
+const timeformat = graphDomnode.getAttribute("timeformat")
 let timeFormatter
 if (timeformat == "date") {
   logger.info(`GEXF time format is "date". Expecting time formatted as "YYYY-MM-DD".`)
@@ -72,7 +72,7 @@ if (timeformat == "date") {
 }
 
 // Check time representation
-const timerepresentation = graphNode.getAttribute("timerepresentation")
+const timerepresentation = graphDomnode.getAttribute("timerepresentation")
 if (timerepresentation == "interval" || timerepresentation == "") {
   logger.debug(`GEXF time representation is "interval".`)
 } else if (timerepresentation == "timestamp") {
@@ -81,3 +81,33 @@ if (timerepresentation == "interval" || timerepresentation == "") {
   logger.error(`GEXF time representation is "${timerepresentation}" and is not currently supported.`)
   process.exit()
 }
+
+// Register which attributes are dynamic or static
+let nodeAttributes = {}
+let edgeAttributes = {}
+const attributesDomnodes = graphDomnode.getElementsByTagName("attributes")
+for (let i=0; i<attributesDomnodes.length; i++) {
+  const attributesDomnode = attributesDomnodes.item(i)
+  const attClass = attributesDomnode.getAttribute("class")
+  const attMode = attributesDomnode.getAttribute("mode")
+  const attributeDomnodes = attributesDomnode.getElementsByTagName("attribute")
+  for (let j=0; j<attributeDomnodes.length; j++) {
+    const attributeDomnode = attributeDomnodes.item(j)
+    let attObj = {}
+    attObj.id = attributeDomnode.getAttribute("id")
+    attObj.title = attributeDomnode.getAttribute("title")
+    attObj.type = attributeDomnode.getAttribute("type")
+    if (attributeDomnode.getElementsByTagName("default") && attributeDomnode.getElementsByTagName("default").length > 0){
+      attObj.default = attributeDomnode.getElementsByTagName("default").item(0).textContent
+    }
+    attObj.mode = attMode
+    if (attClass == "node") {
+      nodeAttributes[attObj.id] = attObj
+    } else if (attClass == "edge") {
+      edgeAttributes[attObj.id] = attObj
+    }
+    logger.debug(`Found ${attObj.mode} ${attClass} attribute "${attObj.id}". Type: ${attObj.type}. Title: ${attObj.title}.`)
+  }
+}
+
+/// BUILD SLICES
