@@ -19,7 +19,7 @@ options = program.opts();
 
 // Logger
 const logger = getLogger(`log/${program.name}.log`)
-// logger.level = "debug"
+logger.level = "debug"
 
 // Parse GEXF
 const xmlFile = readFileSync(options.input, 'utf8');
@@ -37,7 +37,7 @@ if (gexfVersion !== "1.3") {
 
 // Check if dynamic
 if (graphNode.getAttribute("mode") !== "dynamic") {
-  logger.error(`The GEXF is not dynamic, which is currently not supported.`)
+  logger.error(`The GEXF is not dynamic, which is currently not supported. GEXF mode: ${graphNode.getAttribute("mode") || "static"}.`)
   process.exit()
 }
 
@@ -56,7 +56,7 @@ if (timeformat == "date") {
     const msec = Date.parse(datetime)
     return msec
   }
-} else if (timeformat == "integer") {
+} else if (timeformat == "integer" || timeformat == "") {
   logger.info(`GEXF time format is "integer". Expecting time formatted as a natural number.`)
   timeFormatter = function(integer) {
     return +integer
@@ -68,5 +68,16 @@ if (timeformat == "date") {
   }
 } else {
   logger.error(`GEXF time format is "${timeformat}" and is not currently supported.`)
+  process.exit()
+}
+
+// Check time representation
+const timerepresentation = graphNode.getAttribute("timerepresentation")
+if (timerepresentation == "interval" || timerepresentation == "") {
+  logger.debug(`GEXF time representation is "interval".`)
+} else if (timerepresentation == "timestamp") {
+  logger.debug(`GEXF time representation is "timestamp".`)
+} else {
+  logger.error(`GEXF time representation is "${timerepresentation}" and is not currently supported.`)
   process.exit()
 }
