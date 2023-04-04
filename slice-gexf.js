@@ -28,6 +28,7 @@ const doc = parser.parseFromString(xmlFile);
 const gexfDomnode = doc.getElementsByTagName("gexf").item(0)
 const gexfVersion = gexfDomnode.getAttribute("version")
 const graphDomnode = gexfDomnode.getElementsByTagName("graph").item(0)
+const nodesDomnode = graphDomnode.getElementsByTagName("nodes").item(0)
 
 /// CHECKS
 // Check GEXF version
@@ -111,3 +112,47 @@ for (let i=0; i<attributesDomnodes.length; i++) {
 }
 
 /// BUILD SLICES
+// Find earliest and latest dates
+let dateMin = Infinity
+let dateMax = -Infinity
+const nodeDomnodes = nodesDomnode.getElementsByTagName("node")
+let pileDates
+if (timerepresentation == "interval") {
+  pileDates = function(domnode, dates){
+    let start = domnode.getAttribute("start")
+    if (start) {
+      dates[start] = true
+    }
+    let end = domnode.getAttribute("end")
+    if (end) {
+      dates[end] = true
+    }
+  }
+} else if (timerepresentation == "timestamp") {
+  pileDates = function(domnode, dates){
+    let timestamp = domnode.getAttribute("timestamp")
+    if (timestamp) {
+      dates[timestamp] = true
+    }
+  }
+}
+for (let i=0; i<nodeDomnodes.length; i++) {
+  const nodeDomnode = nodeDomnodes.item(i)
+  let dates = {}
+  pileDates(nodeDomnode, dates)
+  const spellsDomnode = nodeDomnode.getElementsByTagName("spells")
+  if (spellsDomnode.length>0) {
+    const spellDomnodes = spellsDomnode.item(0).getElementsByTagName("spell")
+    for (let j=0; j<spellDomnodes.length; j++) {
+      const spellDomnode = spellDomnodes.item(j)
+      pileDates(spellDomnode, dates)
+    }
+  }
+  dates = Object.keys(dates)
+  dates.forEach(d => {
+    const date = timeFormatter(d)
+    dateMin = Math.min(dateMin, date)
+    dateMax = Math.max(dateMax, date)
+  })
+}
+logger.debug(`Time interval found: from ${dateMin} to ${dateMax}.`)
