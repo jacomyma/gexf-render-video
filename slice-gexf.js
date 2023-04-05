@@ -44,28 +44,57 @@ if (graphDomnode.getAttribute("mode") !== "dynamic") {
 
 // Check which time format to use
 const timeformat = graphDomnode.getAttribute("timeformat")
-let timeFormatter
+let timeParser, timeFormatter
 if (timeformat == "date") {
   logger.info(`GEXF time format is "date". Expecting time formatted as "YYYY-MM-DD".`)
-  timeFormatter = function(date) {
+  timeParser = function(date) {
     const msec = Date.parse(date)
     return msec
   }
+  timeFormatter = function(msec) {
+    const date = new Date(msec)
+    const year = date.getFullYear()
+    const month = String(date.getMonth() + 1).padStart(2, '0')
+    const day = String(date.getDate()).padStart(2, '0')
+    return `${year}-${month}-${day}`
+  }
 } else if (timeformat == "dateTime") {
   logger.info(`GEXF time format is "dateTime". Expecting time formatted as "YYYY-MM-DDTHH:mm:ss.sssZ".`)
-  timeFormatter = function(datetime) {
+  timeParser = function(datetime) {
     const msec = Date.parse(datetime)
     return msec
   }
+  timeFormatter = function(msec) {
+    const date = new Date(msec)
+    const year = date.getFullYear()
+    const month = String(date.getMonth() + 1).padStart(2, '0')
+    const day = String(date.getDate()).padStart(2, '0')
+    const hours = String(date.getHours()).padStart(2, '0')
+    const minutes = String(date.getMinutes()).padStart(2, '0')
+    const seconds = String(date.getSeconds()).padStart(2, '0')
+    const millisecondsFormatted = String(date.getMilliseconds()).padStart(3, '0')
+    const timezoneOffset = date.getTimezoneOffset()
+    const timezoneOffsetSign = timezoneOffset > 0 ? '-' : '+'
+    const timezoneOffsetHours = String(Math.abs(Math.floor(timezoneOffset / 60))).padStart(2, '0')
+    const timezoneOffsetMinutes = String(Math.abs(timezoneOffset % 60)).padStart(2, '0')
+    const timezoneOffsetFormatted = timezoneOffsetSign + timezoneOffsetHours + ':' + timezoneOffsetMinutes
+    return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}.${millisecondsFormatted}${timezoneOffsetFormatted}`
+  }
 } else if (timeformat == "integer" || timeformat == "") {
   logger.info(`GEXF time format is "integer". Expecting time formatted as a natural number.`)
-  timeFormatter = function(integer) {
+  timeParser = function(integer) {
     return +integer
+  }
+  timeFormatter = function(integer) {
+    return String(integer)
   }
 } else if (timeformat == "double") {
   logger.info(`GEXF time format is "double". Expecting time formatted as a decimal number.`)
-  timeFormatter = function(double) {
+  timeParser = function(double) {
     return +double
+  }
+  timeFormatter = function(double) {
+    return String(double)
   }
 } else {
   logger.error(`GEXF time format is "${timeformat}" and is not currently supported.`)
@@ -150,9 +179,9 @@ for (let i=0; i<nodeDomnodes.length; i++) {
   }
   dates = Object.keys(dates)
   dates.forEach(d => {
-    const date = timeFormatter(d)
+    const date = timeParser(d)
     dateMin = Math.min(dateMin, date)
     dateMax = Math.max(dateMax, date)
   })
 }
-logger.debug(`Time interval found: from ${dateMin} to ${dateMax}.`)
+logger.info(`Time range detected: from ${timeFormatter(dateMin)} to ${timeFormatter(dateMax)}.`)
