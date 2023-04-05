@@ -3,7 +3,7 @@ import { DOMParser } from 'xmldom';
 import { readFileSync } from 'fs';
 import { getLogger } from "./-get-logger.js"
 
-/// CLI logic
+// CLI logic
 let program, options
 program = new Command();
 program
@@ -29,8 +29,13 @@ const gexfDomnode = doc.getElementsByTagName("gexf").item(0)
 const gexfVersion = gexfDomnode.getAttribute("version")
 const graphDomnode = gexfDomnode.getElementsByTagName("graph").item(0)
 const nodesDomnode = graphDomnode.getElementsByTagName("nodes").item(0)
+const nodeDomnodes = nodesDomnode.getElementsByTagName("node")
+const edgesDomnode = graphDomnode.getElementsByTagName("edges").item(0)
+const edgeDomnodes = edgesDomnode.getElementsByTagName("edge")
+
 
 /// CHECKS
+
 // Check GEXF version
 if (gexfVersion !== "1.3") {
   logger.warn(`GEXF version is ${gexfVersion}. Current code is designed for version 1.3, so this version might not be supported.`)
@@ -139,12 +144,27 @@ for (let i=0; i<attributesDomnodes.length; i++) {
     logger.debug(`Found ${attObj.mode} ${attClass} attribute "${attObj.id}". Type: ${attObj.type}. Title: ${attObj.title}.`)
   }
 }
+// Defaults
+let windowRangeDefault
+let windowStepDefault
+let windowUnitRatio
+if (timeformat == "date" || timeformat == "dateTime") {
+  windowRangeDefault = 7*24*60*60 // seconds
+  windowStepDefault = 24*60*60 // seconds
+  windowUnitRatio = 1000 // seconds to milliseconds
+} else {
+  windowRangeDefault = 1 // arbitrary unit
+  windowStepDefault = 0.1 // arbitrary unit
+  windowUnitRatio = 1 // no conversion
+}
+let windowRange = (options.range?+options.range:windowRangeDefault)*windowUnitRatio
+let windowStep = (options.range?+options.range:windowStepDefault)*windowUnitRatio
 
 /// BUILD SLICES
+
 // Find earliest and latest dates
 let dateMin = Infinity
 let dateMax = -Infinity
-const nodeDomnodes = nodesDomnode.getElementsByTagName("node")
 let pileDates
 if (timerepresentation == "interval") {
   pileDates = function(domnode, dates){
@@ -185,3 +205,109 @@ for (let i=0; i<nodeDomnodes.length; i++) {
   })
 }
 logger.info(`Time range detected: from ${timeFormatter(dateMin)} to ${timeFormatter(dateMax)}.`)
+
+// Build empty slices
+let slices = []
+for (let i = dateMin; i<=dateMax-windowRange; i+=windowStep){
+  let slice = {
+    start: i,
+    end: i+windowRange,
+    nodes:[],
+    edges:[],
+  }
+  slices.push(slice)
+}
+logger.debug(`${slices.length} empty slices prepared.`)
+
+// Overlap rule
+let overlapDomnodeSlice
+if (timerepresentation == "interval") {
+  overlapDomnodeSlice = function(domnode, slice) {
+    const start = domnode.getAttribute("start")
+    const end = domnode.getAttribute("end")
+    if (start || end) {
+      let startDate
+      if (start) {
+        startDate = timeParser(start)
+      } else {
+        startDate = -Infinity
+      }
+      let endDate
+      if (end) {
+        endDate = timeParser(end)
+      } else {
+        endDate = Infinity
+      }
+      return !(endDate<slice.start || slice.end<startDate)
+    }
+  }
+} else if (timerepresentation == "timestamp") {
+  overlapDomnodeSlice = function(domnode, slice) {
+    const timestamp = domnode.getAttribute("timestamp")
+    if (timestamp) {
+      const tsDate = timeParser(timestamp)
+      return (slice.start<=tsDate && tsDate<slice.end)
+    }
+    return false
+  }
+}
+
+// Fill slices with nodes
+let checkNodeSlice
+if (timerepresentation == "interval") {
+  checkNodeSlice = function(nodeDomnode, slice) {
+    let start = nodeDomnode.getAttribute("start")
+    let end = nodeDomnode.getAttribute("end")
+    if (start || end) {
+      return overlapDomnodeSlice(nodeDomnode, slice)
+    } else {
+      let spellsDomnodeList = nodeDomnode.getElementsByTagName("spells")
+      if (spellsDomnodeList.length>0) {
+        let spellsDomnode = spellsDomnodeList.item(0)
+        let spellDomnodes = spellsDomnode.getElementsByTagName("spell")
+        for (let i=0; i<spellDomnodes.length; i++) {
+          const spellDomnode = spellDomnodes.item(i)
+          if (overlapDomnodeSlice(spellDomnode, slice)) {
+            return true
+          }
+        }
+      }
+    }
+  }
+} else if (timerepresentation == "timestamp") {
+  checkNodeSlice = function(nodeDomnode, slice) {
+    let timestamp = nodeDomnode.getAttribute("timestamp")
+    if (timestamp) {
+      return overlapDomnodeSlice(nodeDomnode, slice)
+    } else {
+      let spellsDomnodeList = nodeDomnode.getElementsByTagName("spells")
+      if (spellsDomnodeList.length>0) {
+        let spellsDomnode = spellsDomnodeList.item(0)
+        let spellDomnodes = spellsDomnode.getElementsByTagName("spell")
+        for (let i=0; i<spellDomnodes.length; i++) {
+          const spellDomnode = spellDomnodes.item(i)
+          if (overlapDomnodeSlice(spellDomnode, slice)) {
+            return true
+          }
+        }
+      }
+    }
+  }
+}
+for (let i=0; i<nodeDomnodes.length; i++) {
+  if (i>0 && i%100 == 0) {
+    logger.info(`${i}/${nodeDomnodes.length} nodes sorted in slices...`)
+  }
+  const nodeDomnode = nodeDomnodes.item(i)
+  slices.forEach(slice => {
+    if (checkNodeSlice(nodeDomnode, slice)) {
+      let id = nodeDomnode.getAttribute("id")
+      let label = nodeDomnode.getAttribute("label")
+        // TODO: ATTRIBUTES
+      slice.nodes.push({id, label})
+    }
+  })
+}
+console.log("slice 0", slices[0])
+
+
