@@ -16,6 +16,16 @@ program
 	.description('Compute layout for slices')
   .option('-i, --input <file>', 'Slices JSON file (default: slices.json)')
   .option('-s, --sample <slice>', 'Samples a single slice. Use it to tune settings more quickly.')
+  .option('--nodesizemin <number>', 'Minimal node size. Default: 10.')
+  .option('--nodesizefactor <number>', 'Node size factor: how much node size grows with (in-)degree. Default: 2.')
+  .option('--nodesizepower <number>', 'Node size power (exponent): above 1, size grows exponentially with (in-)degree. Default: 1.')
+  .option('--strongergravity <boolean>', 'Force Atlas 2 "strong gravity" setting. Default: true')
+  .option('--gravity <number>', 'Force Atlas 2 "gravity" setting. Default: 1.')
+  .option('--iterationsfactor <number>', 'Force Atlas 2 "iterationsfactor" setting. Default: 10.')
+  .option('--barneshut <boolean>', 'Force Atlas 2 "barneshut" setting. Default: true.')
+  .option('--scaling <number>', 'Force Atlas 2 "scaling" setting. Default: 1.')
+  .option('--linlog <boolean>', 'Force Atlas 2 "linlog" setting. Default: true.')
+  .option('--preventoverlap <boolean>', 'Force Atlas 2 "preventoverlap" setting. Default: true.')
   .showHelpAfterError()
   .parse(process.argv);
 
@@ -58,7 +68,6 @@ if (options.sample) {
 
     // Set node size
 		try {
-			const inDegreeMax = Math.max(...g.nodes().map(nid => g.inDegree(nid)))
 			const sizeMin = +options.nodesizemin || 10
 			const sizeFactor = +options.nodesizefactor || 2
       const sizePower = +options.nodesizepower || 1
@@ -106,12 +115,13 @@ if (options.sample) {
 
 function renderLayout(g, sample) {
   // Defaults
-  const gravity = options.layoutgravity || 0.01
-  const iterationsfactor = options.iterationsfactor || 10
-  const barneshut = (options.barneshut===undefined)?true:options.barneshut
-  const scaling = options.scaling || 1
+  const strongergravity = (options.strongergravity===undefined)?true:(options.strongergravity.toLowerCase()=="true")
+  const gravity = +options.gravity || 0.01
+  const iterationsfactor = +options.iterationsfactor || 10
+  const barneshut = (options.barneshut===undefined)?true:(options.barneshut.toLowerCase()=="true")
+  const scaling = +options.scaling || 1
   const linlog = (options.linlog===undefined)?true:options.linlog
-  const preventoverlap = (options.preventoverlap===undefined)?true:options.preventoverlap
+  const preventoverlap = (options.preventoverlap===undefined)?true:(options.preventoverlap.toLowerCase()=="true")
 
   // Steps
   const howManyLayoutSteps = 4 + (preventoverlap?1:0)
@@ -162,7 +172,7 @@ function renderLayout(g, sample) {
       adjustSizes: false,
       edgeWeightInfluence: 0,
       scalingRatio: scaling,
-      strongGravityMode: true,
+      strongGravityMode: strongergravity,
       gravity: gravity,
       slowDown: 5,
       barnesHutOptimize: barneshut,
@@ -193,7 +203,7 @@ function renderLayout(g, sample) {
       adjustSizes: false,
       edgeWeightInfluence: 0,
       scalingRatio: scaling,
-      strongGravityMode: true,
+      strongGravityMode: strongergravity,
       gravity: gravity,
       slowDown: 20,
       barnesHutOptimize: barneshut,
@@ -224,7 +234,7 @@ function renderLayout(g, sample) {
       adjustSizes: false,
       edgeWeightInfluence: 0,
       scalingRatio: scaling,
-      strongGravityMode: true,
+      strongGravityMode: strongergravity,
       gravity: gravity,
       slowDown: 20,
       barnesHutOptimize: false,
