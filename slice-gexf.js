@@ -19,7 +19,7 @@ program
 options = program.opts();
 
 // Logger
-const logger = getLogger(`log/${program.name}.log`)
+const logger = getLogger(`log/${program.name()}.log`)
 logger.level = "debug"
 
 // Parse GEXF
@@ -386,7 +386,7 @@ for (let i=0; i<edgeDomnodes.length; i++) {
 
 /// SAVE
 
-let sliced = {nodeAttributes, edgeAttributes, slices}
+let sliced = {timeformat, timerepresentation, nodeAttributes, edgeAttributes, slices}
 sliced.defaultedgetype = graphDomnode.getAttribute("defaultedgetype")
 const serializedJSON = JSON.stringify(sliced);
 const outputFile = `slices.json`
