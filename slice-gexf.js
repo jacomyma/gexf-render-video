@@ -303,8 +303,29 @@ for (let i=0; i<nodeDomnodes.length; i++) {
     if (checkNodeSlice(nodeDomnode, slice)) {
       let id = nodeDomnode.getAttribute("id")
       let label = nodeDomnode.getAttribute("label")
-        // TODO: ATTRIBUTES
-      slice.nodes.push({id, label})
+      let node = {id, label}
+      // Attributes
+      let attvaluesIndex = {}
+      const attvaluesDomnode = nodeDomnode.getElementsByTagName("attvalues").item(0)
+      const attvalueDomnodes = attvaluesDomnode.getElementsByTagName("attvalue")
+      for (let j=0; j<attvalueDomnodes.length; j++) {
+        const attvalueDomnode = attvalueDomnodes.item(j)
+        const attId = attvalueDomnode.getAttribute("for")
+        if (nodeAttributes[attId].mode == "static") {
+          attvaluesIndex[attId] = attvalueDomnode.getAttribute("value")
+        } else {
+          if (overlapDomnodeSlice(attvalueDomnode, slice)) {
+            attvaluesIndex[attId] = attvalueDomnode.getAttribute("value")
+          }
+        }
+      }
+      for (let attId in nodeAttributes) {
+        if (attId != "id" && attId != "label") {
+          node[attId] = attvaluesIndex[attId] || nodeAttributes[attId].default
+        }
+      }
+
+      slice.nodes.push(node)
     }
   })
 }
