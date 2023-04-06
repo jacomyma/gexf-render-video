@@ -329,6 +329,46 @@ for (let i=0; i<nodeDomnodes.length; i++) {
     }
   })
 }
+
+// Fill slices with edges
+let checkEdgeSlice = checkNodeSlice
+for (let i=0; i<edgeDomnodes.length; i++) {
+  if (i>0 && i%1000 == 0) {
+    logger.info(`${i}/${edgeDomnodes.length} edges sorted in slices...`)
+  }
+  const edgeDomnode = edgeDomnodes.item(i)
+  slices.forEach(slice => {
+    if (checkEdgeSlice(edgeDomnode, slice)) {
+      let id = edgeDomnode.getAttribute("id")
+      let source = edgeDomnode.getAttribute("source")
+      let target = edgeDomnode.getAttribute("target")
+      let edge = {id, source, target}
+      // Attributes
+      let attvaluesIndex = {}
+      const attvaluesDomnode = edgeDomnode.getElementsByTagName("attvalues").item(0)
+      const attvalueDomnodes = attvaluesDomnode.getElementsByTagName("attvalue")
+      for (let j=0; j<attvalueDomnodes.length; j++) {
+        const attvalueDomnode = attvalueDomnodes.item(j)
+        const attId = attvalueDomnode.getAttribute("for")
+        if (edgeAttributes[attId].mode == "static") {
+          attvaluesIndex[attId] = attvalueDomnode.getAttribute("value")
+        } else {
+          if (overlapDomnodeSlice(attvalueDomnode, slice)) {
+            attvaluesIndex[attId] = attvalueDomnode.getAttribute("value")
+          }
+        }
+      }
+      for (let attId in edgeAttributes) {
+        if (attId != "id" && attId != "source" && attId != "target") {
+          edge[attId] = attvaluesIndex[attId] || edgeAttributes[attId].default
+        }
+      }
+
+      slice.edges.push(edge)
+    }
+  })
+}
+
 console.log("slice 0", slices[0])
 
 
