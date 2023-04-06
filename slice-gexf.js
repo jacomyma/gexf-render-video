@@ -2,6 +2,7 @@ import { Command } from 'commander';
 import { DOMParser } from 'xmldom';
 import { readFileSync } from 'fs';
 import { getLogger } from "./-get-logger.js"
+import * as fs from "fs";
 
 // CLI logic
 let program, options
@@ -159,6 +160,7 @@ if (timeformat == "date" || timeformat == "dateTime") {
 }
 let windowRange = (options.range?+options.range:windowRangeDefault)*windowUnitRatio
 let windowStep = (options.range?+options.range:windowStepDefault)*windowUnitRatio
+
 
 /// BUILD SLICES
 
@@ -343,6 +345,19 @@ for (let i=0; i<edgeDomnodes.length; i++) {
       let source = edgeDomnode.getAttribute("source")
       let target = edgeDomnode.getAttribute("target")
       let edge = {id, source, target}
+      // Native attributes
+      const type = edgeDomnode.getAttribute("type")
+      if (type) {
+        edge.type = type
+      }
+      const weight = edgeDomnode.getAttribute("weight")
+      if (weight) {
+        edge.weight = weight
+      }
+      const kind = edgeDomnode.getAttribute("kind")
+      if (kind) {
+        edge.kind = kind
+      }
       // Attributes
       let attvaluesIndex = {}
       const attvaluesDomnode = edgeDomnode.getElementsByTagName("attvalues").item(0)
@@ -359,7 +374,7 @@ for (let i=0; i<edgeDomnodes.length; i++) {
         }
       }
       for (let attId in edgeAttributes) {
-        if (attId != "id" && attId != "source" && attId != "target") {
+        if (attId != "id" && attId != "source" && attId != "target" && attId != "type" && attId != "kind" && attId != "weight") {
           edge[attId] = attvaluesIndex[attId] || edgeAttributes[attId].default
         }
       }
@@ -369,6 +384,15 @@ for (let i=0; i<edgeDomnodes.length; i++) {
   })
 }
 
-console.log("slice 0", slices[0])
+/// SAVE
+
+let sliced = {nodeAttributes, edgeAttributes, slices}
+sliced.defaultedgetype = graphDomnode.getAttribute("defaultedgetype")
+const serializedJSON = JSON.stringify(sliced);
+const outputFile = `slices.json`
+fs.writeFile(outputFile, serializedJSON, (err) => {
+  if (err) throw err;
+  logger.info(`Slices saved to: ${outputFile}`)
+});
 
 
