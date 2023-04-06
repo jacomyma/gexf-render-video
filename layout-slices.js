@@ -59,8 +59,8 @@ if (options.sample) {
     // Set node size
 		try {
 			const inDegreeMax = Math.max(...g.nodes().map(nid => g.inDegree(nid)))
-			const sizeMin = +options.nodesizemin || 1
-			const sizeFactor = +options.nodesizefactor || 0.1
+			const sizeMin = +options.nodesizemin || 10
+			const sizeFactor = +options.nodesizefactor || 2
       const sizePower = +options.nodesizepower || 1
 			g.nodes().forEach(nid => {
 				let n = g.getNodeAttributes(nid)
@@ -109,10 +109,9 @@ function renderLayout(g, sample) {
   const gravity = options.layoutgravity || 0.01
   const iterationsfactor = options.iterationsfactor || 10
   const barneshut = (options.barneshut===undefined)?true:options.barneshut
-  const scaling = options.scaling || 0.1
+  const scaling = options.scaling || 1
   const linlog = (options.linlog===undefined)?true:options.linlog
-  // const preventoverlap = (options.preventoverlap===undefined)?true:options.preventoverlap
-  const preventoverlap = false
+  const preventoverlap = (options.preventoverlap===undefined)?true:options.preventoverlap
 
   // Steps
   const howManyLayoutSteps = 4 + (preventoverlap?1:0)
@@ -157,7 +156,7 @@ function renderLayout(g, sample) {
     }
 
     // Applying FA2 (basis)
-    forceAtlas2.assign(g, {iterations: 500*iterationsfactor, settings: {
+    forceAtlas2.assign(g, {iterations: 100*iterationsfactor, settings: {
       linLogMode: linlog,
       outboundAttractionDistribution: false,
       adjustSizes: false,
@@ -188,7 +187,7 @@ function renderLayout(g, sample) {
     }
 
     // Refine FA2
-    forceAtlas2.assign(g, {iterations: 50*iterationsfactor, settings: {
+    forceAtlas2.assign(g, {iterations: 10*iterationsfactor, settings: {
       linLogMode: linlog,
       outboundAttractionDistribution: false,
       adjustSizes: false,
@@ -219,7 +218,7 @@ function renderLayout(g, sample) {
     }
 
     // Refine FA2
-    forceAtlas2.assign(g, {iterations: 10*iterationsfactor, settings: {
+    forceAtlas2.assign(g, {iterations: 2*iterationsfactor, settings: {
       linLogMode: linlog,
       outboundAttractionDistribution: false,
       adjustSizes: false,
