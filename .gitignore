@@ -1,5 +1,6 @@
 slices.json
 layout-slices.json
+sampled-slice.gexf
 data/*
 
 # Logs
