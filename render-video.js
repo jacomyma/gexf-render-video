@@ -14,6 +14,8 @@ program
 	.description('Render video from slices with layout')
   .option('-i, --input <file>', 'Slices with layout JSON file (default: slices-layout.json)')
   .option('-s, --sample <slice>', 'Samples a single slice as a frame. Use it to tune settings more quickly.')
+  .option('-l, --limit <number>', 'Render only the first N frames. Use it to get a preview.')
+  .option('--fpi <number>', 'Frames per image (FPI). As the video is 30 frames per second (FPI), 1 FPI renders 30 images per second (IPS), and 10 FPI renders 3 IPS. Default: 3')
   .showHelpAfterError()
   .parse(process.argv);
 
@@ -35,7 +37,8 @@ try {
 }
 
 /// RENDER VIDEO
-const framesPerImage = 1
+const framesPerImage = options.fpi || 3
+const maxFrame = options.limit || Infinity
 let currentSlice = 0
 if (options.sample) {
   // Sample a single slice
@@ -75,7 +78,7 @@ if (options.sample) {
     .then(encodeFrame)
   
   async function encodeFrame() {
-    if (currentSlice>0 && currentSlice%100 == 0) {
+    if (currentSlice>0 && currentSlice%10 == 0) {
       logger.info(`Compute frame for slice ${currentSlice}/${data.slices.length}...`)
     }
 
@@ -89,7 +92,7 @@ if (options.sample) {
 		}
     currentSlice++
 
-    if (currentSlice > data.slices.length) {
+    if (currentSlice > maxFrame || currentSlice > data.slices.length) {
       encoder.finalize();
       let uint8Array = encoder.FS.readFile(encoder.outputFilename);
       fs.writeFileSync(`video.mp4`, Buffer.from(uint8Array));
