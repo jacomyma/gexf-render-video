@@ -56,31 +56,10 @@ if (options.sample) {
     logger.info(`Sample slice ${options.sample}.`)
     const slice = data.slices[options.sample]
 
-    // Build network
-    let g = new Graph({type: "mixed", allowSelfLoops: false})
-    slice.nodes.forEach(node => {
-      g.addNode(node.id, node)
-    })
-    slice.edges.forEach(edge => {
-      g.addEdge(edge.source, edge.target, edge)
-    })
+    let g = buildNetwork(slice)
     logger.info(`Network built (${g.order} nodes, ${g.size} edges).`);
 
-    // Set node size
-		try {
-			const sizeMin = +options.nodesizemin || 10
-			const sizeFactor = +options.nodesizefactor || 2
-      const sizePower = +options.nodesizepower || 1
-			g.nodes().forEach(nid => {
-				let n = g.getNodeAttributes(nid)
-				n.size = Math.sqrt(sizeMin + sizeFactor * Math.pow(g.inDegree(nid), sizePower))
-			})
-		} catch (error) {
-			logger
-        .child({ context: {error:error.message} })
-        .error(`An error occurred when setting node sizes`);
-      console.log(error)
-		}
+    setNodeSizes(g)
 
     // Render layout
     renderLayout(g, true)
@@ -107,7 +86,83 @@ if (options.sample) {
 		}
   }
 } else {
-  // TODO: layout over time
+  let lastNodesIndex = {}
+  data.slices.forEach((slice, i) => {
+    if (i>0 && i%100 == 0) {
+      logger.info(`Compute layout for slice ${i}/${data.slices.length}...`)
+    }
+
+    // Build network
+    let g = buildNetwork(slice)
+    setNodeSizes(g)
+
+    // Get positions from last time
+    g.nodes().forEach(nid => {
+      let n = g.getNodeAttributes(nid)
+      let last = lastNodesIndex[nid]
+      if (last) {
+        n.x = last.x
+        n.y = last.y
+      }
+    })
+
+    // Render layout
+    renderLayout(g, false)
+
+    // Update node data in slices
+    slice.nodes = g.nodes().map(nid => g.getNodeAttributes(nid))
+
+    // Update index
+    lastNodesIndex = {}
+    g.nodes().forEach(nid => {
+      let n = g.getNodeAttributes(nid)
+      lastNodesIndex[nid] = {x:n.x, y:n.y}
+    })
+  })
+
+  // Save data
+  const serializedJSON = JSON.stringify(data);
+  const outputFile = `slices-layout.json`
+  fs.writeFile(outputFile, serializedJSON, (err) => {
+    if (err) throw err;
+    logger.info(`Slices with layout saved to: ${outputFile}`)
+  });
+}
+
+
+/// BUILD NETWORK
+
+function buildNetwork(slice) {
+  // Build network
+  let g = new Graph({type: "mixed", allowSelfLoops: false})
+  slice.nodes.forEach(node => {
+    g.addNode(node.id, node)
+  })
+  slice.edges.forEach(edge => {
+    g.addEdge(edge.source, edge.target, edge)
+  })
+  return g
+}
+
+
+/// SET NODE SIZES
+
+function setNodeSizes(g) {
+  // Set node size
+  try {
+    const sizeMin = +options.nodesizemin || 10
+    const sizeFactor = +options.nodesizefactor || 2
+    const sizePower = +options.nodesizepower || 1
+    g.nodes().forEach(nid => {
+      let n = g.getNodeAttributes(nid)
+      n.size = Math.sqrt(sizeMin + sizeFactor * Math.pow(g.inDegree(nid), sizePower))
+    })
+  } catch (error) {
+    logger
+      .child({ context: {error:error.message} })
+      .error(`An error occurred when setting node sizes`);
+    console.log(error)
+  }
 }
 
 
@@ -127,26 +182,46 @@ function renderLayout(g, sample) {
   const howManyLayoutSteps = 4 + (preventoverlap?1:0)
   try {
     // Initial positions
+    const spreading = Math.sqrt(g.order) * 100
     if (sample) {
       logger.info(`Compute layout 1/${howManyLayoutSteps} - Initial positions...`)
+      
+      // Applying a random layout before starting
+      g.nodes().forEach((nid,i) => {
+        g.setNodeAttribute(nid, "x", (Math.random()-0.5)*spreading)
+        g.setNodeAttribute(nid, "y", (Math.random()-0.5)*spreading)
+      })
+    } else {
+      let nodesIndex = {}
+      g.nodes().forEach(nid => {
+        let n = g.getNodeAttributes(nid)
+        if (!n.x || !n.y) {
+          // The node has no coordinate (it was not there in the previous slice)
+          // Compute average of neighbors
+          let x = 0
+          let y = 0
+          let count = 0
+          g.forEachNeighbor(nid, (n2id, n2) => {
+            if (n2.x && n2.y) {
+              x += n2.x
+              y += n2.y
+              count++
+            }
+          })
+          if (count==0) {
+            // No neighbors had positions: we use a random position.
+            x = (Math.random()-0.5)*spreading
+            y = (Math.random()-0.5)*spreading
+          }
+          nodesIndex[nid] = {x, y}
+        }
+      })
+      for (let nid in nodesIndex) {
+        let n = g.getNodeAttributes(nid)
+        n.x = nodesIndex[nid].x
+        n.y = nodesIndex[nid].y
+      }
     }
-
-    // Applying a random layout before starting
-    const spreading = Math.sqrt(g.order) * 100
-    g.nodes().forEach((nid,i) => {
-      g.setNodeAttribute(nid, "x", (Math.random()-0.5)*spreading)
-      g.setNodeAttribute(nid, "y", (Math.random()-0.5)*spreading)
-    })
-
-    // If the node already existed yesterday, use yesterday's coordinates.
-    // TODO
-    // g.nodes().forEach((nid,i) => {
-    //   const yn = ynIndex[nid]
-    //   if (yn) {
-    //     g.setNodeAttribute(nid, "x", yn.x)
-    //     g.setNodeAttribute(nid, "y", yn.y)
-    //   }
-    // })
 
     if (sample) {
       logger.info(`Layout 1/${howManyLayoutSteps} computed.`)
