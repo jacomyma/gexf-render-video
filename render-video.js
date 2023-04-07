@@ -4,6 +4,7 @@ import * as fs from "fs";
 import Graph from "graphology";
 import { createCanvas, loadImage, ImageData } from "canvas"
 import * as d3 from 'd3';
+import * as HME from "h264-mp4-encoder";
 
 // CLI logic
 let program, options
@@ -33,6 +34,9 @@ try {
   logger.error(`Error loading input file ${slicesFile}.\n${err}`)
 }
 
+/// RENDER VIDEO
+const framesPerImage = 1
+let currentSlice = 0
 if (options.sample) {
   // Sample a single slice
   // Check that the slice is in the range
@@ -58,22 +62,45 @@ if (options.sample) {
     }
   }
 } else {
-  let lastNodesIndex = {}
-  data.slices.forEach((slice, i) => {
-    if (i>0 && i%100 == 0) {
-      logger.info(`Compute frame for slice ${i}/${data.slices.length}...`)
+  let encoder
+  HME.default.createH264MP4Encoder()
+    .then(enc => {
+      encoder = enc
+      encoder.width = 3840;
+      encoder.height = 2160;
+      encoder.frameRate = 30;
+      encoder.quantizationParameter = 12 // Default 33. Higher means better compression, and lower means better quality [10..51].
+      encoder.initialize();
+    })
+    .then(encodeFrame)
+  
+  async function encodeFrame() {
+    if (currentSlice>0 && currentSlice%100 == 0) {
+      logger.info(`Compute frame for slice ${currentSlice}/${data.slices.length}...`)
     }
 
-    // TODO
-  })
+    let slice = data.slices[currentSlice]
+    // Render frame
+    let canvas = renderFrame(slice)
+    const ctx = canvas.getContext("2d")
+    let imgd = ctx.getImageData(0, 0, ctx.canvas.width, ctx.canvas.height)
+    for (let i=0; i<framesPerImage; i++) {
+  	  encoder.addFrameRgba(imgd.data);
+		}
+    currentSlice++
 
-  // Save data
-  const serializedJSON = JSON.stringify(data);
-  const outputFile = `slices-layout.json`
-  fs.writeFile(outputFile, serializedJSON, (err) => {
-    if (err) throw err;
-    logger.info(`Slices with layout saved to: ${outputFile}`)
-  });
+    if (currentSlice > data.slices.length) {
+      encoder.finalize();
+      let uint8Array = encoder.FS.readFile(encoder.outputFilename);
+      fs.writeFileSync(`video.mp4`, Buffer.from(uint8Array));
+
+      encoder.delete();
+
+      logger.info(`Done.`)
+    } else {
+      return encodeFrame()
+    }
+  }
 }
 
 
