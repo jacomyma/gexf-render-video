@@ -36,7 +36,44 @@ try {
   logger.error(`Error loading input file ${slicesFile}.\n${err}`)
 }
 
-/// RENDER VIDEO
+// Compute max network size
+let dxmax = 0
+let dymax = 0
+data.slices.forEach(slice => {
+  // Compute barycenter
+  let xbarycenter = 0
+  let ybarycenter = 0
+  let wtotal = 0
+  slice.nodes.forEach(n => {
+    let size = n.size || 1
+    xbarycenter += size * n.x
+    ybarycenter += size * n.y
+    wtotal += size
+  })
+  xbarycenter /= wtotal
+  ybarycenter /= wtotal
+
+  // Geometric center
+  let xext = d3.extent(slice.nodes, n => n.x)
+  let yext = d3.extent(slice.nodes, n => n.y)
+  var xgeocenter = (xext[0] + xext[1]) / 2
+  var ygeocenter = (yext[0] + yext[1]) / 2
+
+  // Compromise
+  let xcenter = .2 * xbarycenter + .8 * xgeocenter
+  let ycenter = .2 * ybarycenter + .8 * ygeocenter
+
+  // Distances
+  slice.nodes.forEach(n => {
+    let dx = Math.abs(n.x - xcenter - n.size)
+    let dy = Math.abs(n.y - ycenter - n.size)
+    dxmax = Math.max(dxmax, dx)
+    dymax = Math.max(dymax, dy)
+  })
+})
+
+
+/// RENDER
 const framesPerImage = options.fpi || 3
 const maxFrame = options.limit || Infinity
 let currentSlice = 0
@@ -65,6 +102,7 @@ if (options.sample) {
     }
   }
 } else {
+  // Encode video
   let encoder
   HME.default.createH264MP4Encoder()
     .then(enc => {
@@ -170,8 +208,8 @@ function renderFrame(slice) {
   settings.label_count = 80
   settings.label_max_length = 42 // Number of characters before truncate. Infinity is a valid value.
   settings.label_font_family = "Raleway"
-  settings.label_font_min_size = 7.3 // in pt
-  settings.label_font_max_size = 14  // in pt
+  settings.label_font_min_size = 6 // in pt
+  settings.label_font_max_size = 12  // in pt
   settings.label_font_thickness = .3
   settings.label_border_thickness = 0.3 // in mm
   settings.label_spacing_offset = 1.5 // in mm (prevents label overlap)
@@ -1705,7 +1743,6 @@ function newRenderer(){
     options.flip_y = options.flip_y || false
     options.rotate = options.rotate || 0
     options.use_barycenter_ratio = options.use_barycenter_ratio || .2 // Between 0 (center for borders) and 1 (center for mass)
-    options.contain_in_inscribed_circle = options.contain_in_inscribed_circle || false
     options.margin_bottom = (options.margin_bottom === undefined)?( 6):(options.margin_bottom) // in mm, space for the text etc.
     options.margin_right  = (options.margin_right  === undefined)?( 6):(options.margin_right ) // in mm, space for the text etc.
     options.margin_left   = (options.margin_left   === undefined)?( 6):(options.margin_left  ) // in mm, space for the text etc.
@@ -1761,8 +1798,6 @@ function newRenderer(){
     var xbarycenter = 0
     var ybarycenter = 0
     var wtotal = 0
-    var dx
-    var dy
 
     g.nodes().forEach(function(nid){
       var n = g.getNodeAttributes(nid)
@@ -1785,29 +1820,8 @@ function newRenderer(){
     xcenter = options.use_barycenter_ratio * xbarycenter + (1-options.use_barycenter_ratio) * xgeocenter
     ycenter = options.use_barycenter_ratio * ybarycenter + (1-options.use_barycenter_ratio) * ygeocenter
 
-    if (options.contain_in_inscribed_circle) {
-      var dmax = 0 // Maximal distance from center
-      g.nodes().forEach(function(nid){
-        var n = g.getNodeAttributes(nid)
-        var d = Math.sqrt( Math.pow(n.x - xcenter - n.size, 2) + Math.pow(n.y - ycenter - n.size, 2) )
-        dmax = Math.max(dmax, d)
-      })
-
-      ratio = ( Math.min(dim.w-m.r-m.l, dim.h-m.t-m.b) ) / (2 * dmax)
-      // console.log("Rescale ratio: "+ratio)
-    } else {
-      var dxmax = 0
-      var dymax = 0
-      g.nodes().forEach(function(nid){
-        var n = g.getNodeAttributes(nid)
-        var dx = Math.abs(n.x - xcenter - n.size)
-        var dy = Math.abs(n.y - ycenter - n.size)
-        dxmax = Math.max(dxmax, dx)
-        dymax = Math.max(dymax, dy)
-      })
-      ratio = Math.min((dim.w-m.r-m.l)/(2 * dxmax), (dim.h-m.t-m.b)/(2 * dymax))
-      // console.log("Rescale ratio: "+ratio)
-    }
+    ratio = Math.min((dim.w-m.r-m.l)/(2 * dxmax), (dim.h-m.t-m.b)/(2 * dymax))
+    // console.log("Rescale ratio: "+ratio)
 
     // Resize
     g.nodes().forEach(function(nid){
