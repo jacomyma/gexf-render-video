@@ -1,6 +1,4 @@
 import { Command } from 'commander';
-import { DOMParser } from 'xmldom';
-import { readFileSync } from 'fs';
 import { getLogger } from "./-get-logger.js"
 import * as fs from "fs";
 import Graph from "graphology";
