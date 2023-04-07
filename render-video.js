@@ -47,11 +47,15 @@ if (options.sample) {
     let canvas = renderFrame(slice)
 
     // Save
-    const out = fs.createWriteStream('sample-frame.png')
-    const stream = canvas.createPNGStream()
-    stream.pipe(out)
-
-    logger.info(`Done.`)
+    const outputFile = 'sample-frame.png'
+    try {
+      const out = fs.createWriteStream(outputFile)
+      const stream = canvas.createPNGStream()
+      stream.pipe(out)
+      logger.info(`Sample slice saved to: ${outputFile}`)
+    } catch (err) {
+      logger.error(`Error saving output file ${outputFile}.\n${err}`)
+    }
   }
 } else {
   let lastNodesIndex = {}
@@ -126,7 +130,7 @@ function renderFrame(slice) {
   settings.adjust_voronoi_range = 100 // Factor // Larger node halo
   settings.node_size = 1. // Factor to adjust the nodes drawing size
   settings.node_color_original = false // Use the original node color
-  settings.node_stroke_width = 0.001 // mm
+  settings.node_stroke_width = 0.01 // mm
   settings.node_stroke_color = "#FFFFFF"
   settings.node_fill_color = "#8b9ea9"
 
@@ -138,10 +142,10 @@ function renderFrame(slice) {
   settings.label_font_family = "Raleway"
   settings.label_font_min_size = 7.3 // in pt
   settings.label_font_max_size = 14  // in pt
-  settings.label_font_thickness = .001
-  settings.label_border_thickness = 0.5 // in mm
+  settings.label_font_thickness = .3
+  settings.label_border_thickness = 0.3 // in mm
   settings.label_spacing_offset = 1.5 // in mm (prevents label overlap)
-  settings.label_border_color = settings.edge_color
+  settings.label_border_color = "#FFFFFF"
 
   // Advanced settings
   settings.voronoi_range = 1.2 // Halo size in mm
