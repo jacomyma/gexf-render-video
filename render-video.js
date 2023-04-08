@@ -5,6 +5,7 @@ import Graph from "graphology";
 import { createCanvas, loadImage, ImageData } from "canvas"
 import * as d3 from 'd3';
 import * as HME from "h264-mp4-encoder";
+import path from 'path';
 
 // CLI logic
 let program, options
@@ -13,8 +14,10 @@ program
 	.name('render-video')
 	.description('Render video from slices with layout')
   .option('-i, --input <file>', 'Slices with layout JSON file (default: slices-layout.json)')
+  .option('-o, --output <file>', 'Video file (default: video.mp4)')
   .option('-s, --sample <slice>', 'Samples a single slice as a frame. Use it to tune settings more quickly.')
   .option('-l, --limit <number>', 'Render only the first N frames. Use it to get a preview.')
+  .option('-r, --reuse', 'Reuse frames already rendered (check the /frames/ folder).')
   .option('--fpi <number>', 'Frames per image (FPI). As the video is 30 frames per second (FPI), 1 FPI renders 30 images per second (IPS), and 10 FPI renders 3 IPS. Default: 3')
   .showHelpAfterError()
   .parse(process.argv);
@@ -24,6 +27,9 @@ options = program.opts();
 // Logger
 const logger = getLogger(`log/${program.name()}.log`)
 logger.level = "debug"
+
+// Defaults
+const outputFilename = options.output || "video.mp4"
 
 // Load slices
 const slicesFile = options.input || "slices-layout.json"
@@ -90,7 +96,7 @@ if (options.sample) {
     // Render frame
     let canvas = renderFrame(slice)
 
-    // Save
+    // Save as PNG
     const outputFile = 'sample-frame.png'
     try {
       const out = fs.createWriteStream(outputFile)
@@ -100,6 +106,10 @@ if (options.sample) {
     } catch (err) {
       logger.error(`Error saving output file ${outputFile}.\n${err}`)
     }
+
+    // Save as JPG
+    const frameFilename = buildFrameFilename(outputFilename, options.sample)+'.jpg'
+    saveJPG(canvas, frameFilename)
   }
 } else {
   // Encode video
@@ -121,19 +131,32 @@ if (options.sample) {
     }
 
     let slice = data.slices[currentSlice]
-    // Render frame
-    let canvas = renderFrame(slice)
+
+    const frameFilename = buildFrameFilename(outputFilename, currentSlice)+'.jpg'
+    let canvas
+    if (options.reuse && fs.existsSync(frameFilename)) {
+      let frameImage = await loadImage(frameFilename)
+		  canvas = createCanvas(3840, 2160)
+      const ctx = canvas.getContext("2d")
+      ctx.drawImage(frameImage, 0, 0)
+    } else {
+      // Render frame
+      canvas = renderFrame(slice)
+      // Save as JPG
+      saveJPG(canvas, frameFilename)
+    }
     const ctx = canvas.getContext("2d")
     let imgd = ctx.getImageData(0, 0, ctx.canvas.width, ctx.canvas.height)
     for (let i=0; i<framesPerImage; i++) {
-  	  encoder.addFrameRgba(imgd.data);
-		}
+      encoder.addFrameRgba(imgd.data);
+    }
+
     currentSlice++
 
     if (currentSlice > maxFrame || currentSlice > data.slices.length) {
       encoder.finalize();
       let uint8Array = encoder.FS.readFile(encoder.outputFilename);
-      fs.writeFileSync(`video.mp4`, Buffer.from(uint8Array));
+      fs.writeFileSync(outputFilename, Buffer.from(uint8Array));
 
       encoder.delete();
 
@@ -1845,4 +1868,40 @@ function newRenderer(){
   }
 
   return ns
+}
+
+/// SAVE FRAME
+
+function saveJPG(canvas, filePath) {
+  let buffer = canvas.toBuffer('image/jpeg')
+  try {
+    ensureDirectoryExists(filePath)
+    fs.writeFileSync(filePath, buffer, "binary")
+    return new Promise(resolve => {resolve(filePath)})
+  } catch (error) {
+    logger.error(`The JPG file could not be created: ${filePath}`)
+  }
+}
+
+function buildFrameFilename(filePath, i) {
+  const directory = path.dirname(filePath);
+  const fileName = path.basename(filePath);
+  const framesDirectory = path.join(directory, 'frames');
+  const framesFilePath = path.join(framesDirectory, fileName.replace(/\.[^/.]+$/, `-slice-${formatInt(i)}`));
+  return framesFilePath;
+
+  function formatInt(num) {
+    const numStr = num.toString();
+    const leadingZeros = '0'.repeat(Math.max(0, 6 - numStr.length));
+    return leadingZeros + numStr;
+  }
+}
+
+function ensureDirectoryExists(filePath) {
+  const dirname = path.dirname(filePath);
+  if (fs.existsSync(dirname)) {
+    return true;
+  }
+  ensureDirectoryExists(dirname);
+  fs.mkdirSync(dirname);
 }

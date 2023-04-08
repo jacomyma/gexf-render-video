@@ -3,6 +3,7 @@ slices-layout.json
 sampled-slice.gexf
 sample-frame.png
 video.mp4
+frames/*
 data/*
 
 # Logs
