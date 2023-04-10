@@ -86,7 +86,7 @@ let currentSlice = 0
 if (options.sample) {
   // Sample a single slice
   // Check that the slice is in the range
-  if (options.sample < 0 || options.sample > data.slices.length) {
+  if (options.sample < 0 || options.sample >= data.slices.length) {
     logger.error(`The sampled slice (${options.sampe} must be in the [0,${data.slices.length}] range.)`)
     process.exit()
   } else {
@@ -153,7 +153,7 @@ if (options.sample) {
 
     currentSlice++
 
-    if (currentSlice > maxFrame || currentSlice > data.slices.length) {
+    if (currentSlice > maxFrame || currentSlice >= data.slices.length) {
       encoder.finalize();
       let uint8Array = encoder.FS.readFile(encoder.outputFilename);
       fs.writeFileSync(outputFilename, Buffer.from(uint8Array));
